@@ -268,7 +268,7 @@ async def on_message(message):
         war_duration = war_ins[1] * minute_length
         wait_duration = war_ins[2] * minute_length
 
-        if war_duration >= 1000:
+        if war_ins[1] >= 1000:
             await post_message(message, f"Assuming you want !words instead of a {int(war_ins[1])} min long war")
             await do_words(message)
             return
@@ -581,7 +581,7 @@ async def on_message(message):
             except TypeError:
                 await post_message(message, commands[incommand[1]])
 
-async  def do_words(message):
+async def do_words(message):
     msgin = message.content.split()
     msgout = ''
 
@@ -797,7 +797,7 @@ for hydra in reading:
     hydras.append(hydra)
 reading.close()
 
-admin_roles = ['ML']
+admin_roles = ['Moderator', 'Event Kordinator']
 
 reading = open('key.txt', 'r')
 TOKEN = reading.readline().strip()
