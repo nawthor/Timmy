@@ -8,5 +8,3 @@ Active development of Timmy is currently on hold awaiting [Discord.py](https://p
 As Timmy is tailor made for the NaNoNorge server, some functionality behaves poorly if Timmy is used in several servers simultaneously. This will be remedied in the discord.py v2.0 overhaul. 
 
 Feedback and bug reports regarding Timmy are handled in the NaNoNorge server. 
-
-TEst
