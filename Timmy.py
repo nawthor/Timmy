@@ -5,10 +5,18 @@ import random
 import heapq
 import re
 
+from discord.ext import commands
+
+import os
+from typing import Final
+from dotenv import load_dotenv
+
 intents = discord.Intents.default()
 intents.members = True
 intents.messages = True
-client = discord.Client(intents=intents)
+intents.message_content = True
+#client = discord.Client(intents=intents)
+client = commands.Bot(command_prefix='!', intents=intents)
 
 
 class War:
@@ -87,6 +95,7 @@ class War:
                                                  f'{convert_time_difference_to_str(remaining_duration)} '
                                                  f'remaining. {user_mentions}', mention=self.mention_author)
 
+        # Denne her kan kanskje bli skrevet bedre
         if self.in_war():
             user_mentions = await self.get_reactions_as_mentions(False)
             await post_message(self.message, f'War: {self.name} has ended! {user_mentions}', tts=True, mention=True)
@@ -243,6 +252,9 @@ class Reminder:
 
 @client.event
 async def on_message(message):
+    if not message.content: 
+        print('No message provided')
+
     message_string = message.content.lower()
 
     # Wars
@@ -268,6 +280,7 @@ async def on_message(message):
         war_duration = war_ins[1] * minute_length
         wait_duration = war_ins[2] * minute_length
 
+        # Legg inn en egen mulighet for dersom noen ber om en krig på nøyaktig ett år
         if war_ins[1] >= 1000:
             await post_message(message, f"Assuming you want !words instead of a {int(war_ins[1])} min long war")
             await do_words(message)
@@ -278,7 +291,11 @@ async def on_message(message):
         wars[name.lower()] = war
 
         await war.countdown()
+    
+    if message_string.startswith('!startwar') and not in_slagmark(message):
+        await post_message(message, 'I can not start a war in this channel')
 
+    # Start sessions
     if message_string.startswith('!startsession') and in_slagmark(message):
         msgin = message.content.split()
         in_list, str_start = split_input_variables(msgin[1:], session_defaults)
@@ -303,6 +320,8 @@ async def on_message(message):
         sessions[name.lower()] = session
         await session.run()
 
+    # Ending either sessions or a ongoing war. 
+    # Name of the war/session is required
     if message_string.startswith('!end') and in_slagmark(message):
         name = message.content.split()
         if name[0][4:].lower() == 'session':
@@ -324,6 +343,7 @@ async def on_message(message):
         await post_message(message, msgout)
 
     # TODO: Fix single war in another server
+    # Lists all ongoing wars
     if message_string.startswith('!list'):
         listings = message.content.split()
         listings[0] = listings[0][5:]
@@ -353,16 +373,21 @@ async def on_message(message):
                         msg += f'No {param} at this time \n'
         await post_message(message, msg)
 
+    # Role for those who do NOT want pings during a war. 
+    # Only start and end
     if message_string.startswith('!no-countdown'):
         if is_role(message.author, ['No-Countdown']):
             await message.author.remove_roles(discord.utils.get(message.author.guild.roles, name='No-Countdown'))
         else:
             await message.author.add_roles(discord.utils.get(message.author.guild.roles, name='No-Countdown'))
 
+    # Calls def for saving wordcount to user
     if message_string.startswith('!words'):
         await do_words(message)
 
-    # ML Exclusive
+    # EK Exclusive
+    # TODO: Ta med videre
+    # Sjekk ut hvordan event kan returnere et svar med en gang
     if message_string.startswith('!makeevent') and is_role(message.author, admin_roles) and not in_slagmark(message):
         if '{' not in message.content or not message.content.endswith('}'):
             await message.reply('Events must be formatted as !MakeEvent <message> <{YYYY-MM-DD HH:MM}>',
@@ -412,10 +437,16 @@ async def on_message(message):
             await events[msg_lower].run_event()
             return
 
+    # TODO: Ta med videre
+    # Tanke: en måte å registrere seg så man slipper @everyone
+    # Creates a repetativ @everyone 
     if message_string.startswith('!spam') and is_role(message.author, admin_roles) and not in_slagmark(message):
         msgin = message.content.split()
         freq_list, str_start = split_input_variables(msgin[1:], spam_defaults)
         freq = freq_list[0] * minute_length
+        print(f'Message: {msgin},\n'
+        f'Frequency list: {freq_list},\n'
+        f'Frequency: {freq}')
         try:
             if msgin[str_start]:
                 msg = get_name_string(msgin[str_start:], message)
@@ -426,6 +457,7 @@ async def on_message(message):
         except IndexError:
             await message.reply('Please include a message', mention_author=False)
 
+    # Stops a spam-event(?)
     if message_string.startswith('!stop') and is_role(message.author, admin_roles):
         msgin = message.content.split()
         msg = get_name_string(msgin[1:], message).lower()
@@ -575,7 +607,9 @@ async def on_message(message):
     # !reply
     elif message_string.startswith('!'):
         incommand = message.content.lower().split('!')
+        #print(f'Message sent from user: {incommand}')
         if incommand[1] in commands:
+            #print(f'Command ordered: {message, commands[incommand[1]]()}')
             try:
                 await post_message(message, commands[incommand[1]]())
             except TypeError:
@@ -681,6 +715,7 @@ def is_role(user, roles):
     return False
 
 
+#Denne her er viktig for å få han til å fungere i DC-kanal (slagmark)
 def in_slagmark(message):
     if '📎' in message.channel.name:
         return True
@@ -715,6 +750,7 @@ def get_word_count():
 @client.event
 async def on_ready():
     print('Yay')
+    print(get_prompt())
     while True:
         day = time.localtime()
         if day[1] == november:
@@ -726,7 +762,6 @@ async def on_ready():
         time_past_midnight = day[3] * 3600 + day[4] * 60 + day[5]
         time_to_midnight = 86400 - time_past_midnight
         await asyncio.sleep(time_to_midnight)
-
 
 wars = {}
 spam_dict = {}
@@ -797,10 +832,17 @@ for hydra in reading:
     hydras.append(hydra)
 reading.close()
 
-admin_roles = ['Moderator', 'Event Kordinator']
+admin_roles = ['Moderator', 'Event Koordinator']
 
-reading = open('key.txt', 'r')
-TOKEN = reading.readline().strip()
-reading.close()
+#reading = open('key.txt', 'r')
+#TOKEN = reading.readline().strip()
+#reading.close()
 
-client.run(TOKEN)
+load_dotenv()
+TOKEN: Final[str] = os.getenv('DISCORD_TOKEN')
+
+def main() -> None: 
+    client.run(token=TOKEN) 
+
+if __name__ == '__main__':
+    main()
